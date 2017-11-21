@@ -8,7 +8,7 @@ TuneManager* songManager = NULL;
 boolean alert = false;
 
 LiquidCrystal lcd (9, 8, 7, 6, 5, 4);
-SoftwareSerial BTserial(3, 2);
+SoftwareSerial BTserial(2, 3);
 
 IRrecv irrecv(A1);
 decode_results results;
@@ -39,8 +39,13 @@ void setup() {
 void loop() {
 
   if(BTserial.available()) {
-    if(BTserial.read() == '1')
+    if(BTserial.read() == '1') {
       alert = true;
+      BTserial.write('T');
+      BTserial.write(hour());
+      BTserial.write(minute());
+      BTserial.write(second());
+    }
   }
 
   if(alert) {
@@ -51,10 +56,13 @@ void loop() {
     
   if (irrecv.decode(&results)) {
     if(translateIR() == '-') {
-      alert = false;
-      digitalWrite(redLED, LOW);
-      digitalWrite(greenLED, LOW);
-      digitalWrite(blueLED, LOW);
+      if(alert){
+        BTserial.write('F');
+        alert = false;
+        digitalWrite(redLED, LOW);
+        digitalWrite(greenLED, LOW);
+        digitalWrite(blueLED, LOW);
+      }
     }
     irrecv.resume(); // receive the next value
   }
@@ -101,56 +109,26 @@ void cycleLED() {
 char translateIR() { 
   // takes action based on IR code received
   switch(results.value) {
-  
-  case 0xFF22DD:  
-    return 'B'; 
+    case 0xFF22DD: return 'B';
+    case 0xFF02FD: return 'F';
+    case 0xFFC23D: return 'P';
+    case 0xFFE01F: return '-';
+    case 0xFFA857: return '+';
+    case 0xFF6897: return '0';
+    case 0xFF30CF: return '1';
+    case 0xFF18E7: return '2';
+    case 0xFF7A85: return '3';
+    case 0xFF10EF: return '4';
+    case 0xFF38C7: return '5';
+    case 0xFF5AA5: return '6';
+    case 0xFF42BD: return '7';
+    case 0xFF4AB5: return '8';
+    case 0xFF52AD: return '9';
+  }
 
-  case 0xFF02FD:  
-    return 'F'; 
-
-  case 0xFFC23D:  
-    return 'P'; 
-
-  case 0xFFE01F:  
-    return '-'; 
-
-  case 0xFFA857:  
-    return '+'; 
-
-  case 0xFF6897:  
-    return '0'; 
-
-  case 0xFF30CF:  
-    return '1'; 
-
-  case 0xFF18E7:  
-    return '2'; 
-
-  case 0xFF7A85:  
-    return '3'; 
-
-  case 0xFF10EF:  
-    return '4'; 
-
-  case 0xFF38C7:  
-    return '5'; 
-
-  case 0xFF5AA5:  
-    return '6'; 
-
-  case 0xFF42BD:  
-    return '7'; 
-
-  case 0xFF4AB5:  
-    return '8'; 
-
-  case 0xFF52AD:  
-    return '9'; 
-
-  default: 
-    return 'Z';
-  } 
+  return 'Z';
 }
+
 
 void setupTime() {
   int cursorLocation = 0; 
@@ -259,4 +237,3 @@ void setupTime() {
   lcd.clear();
   setTime(hour_, Time.substring(3,5).toInt(), Time.substring(6,8).toInt(), 1, 1, 1);
 }
-
