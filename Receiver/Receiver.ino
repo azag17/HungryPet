@@ -23,23 +23,21 @@ unsigned long last_led_refresh = 0;
 void setup() {
   // put your setup code here, to run once:
   pinMode(redLED, OUTPUT);
-  digitalWrite(redLED, LOW);
   pinMode(greenLED, OUTPUT);
-  digitalWrite(greenLED, LOW);
   pinMode(blueLED, OUTPUT);
-  digitalWrite(blueLED, LOW);
   lcd.begin(16, 2);
   BTserial.begin(9600);
   irrecv.enableIRIn();
   Serial.begin(9600);
+  setupDate();
   setupTime();
-  songManager = new TuneManager("/tunes");
+  songManager = new TuneManager("/tunes", A0);
 }
 
 void loop() {
 
   if(BTserial.available()) {
-    if(BTserial.read() == '1') {
+    if(BTserial.read() == '1' && !alert) {
       alert = true;
       BTserial.write('T');
       BTserial.write(hour());
@@ -69,6 +67,14 @@ void loop() {
 
   if(millis() - last_screen_refresh > 1000) {
     lcd.clear();
+    
+    lcd.setCursor(3,0);
+    lcd.print(month());
+    lcd.print("/");
+    lcd.print(day());
+    lcd.print("/");
+    lcd.print(year());
+    
     lcd.setCursor(3,1);
     lcd.print(hourFormat12());
     lcd.print(":");
@@ -103,7 +109,6 @@ void cycleLED() {
     }
     last_led_refresh = millis();
   }
-  
 }
 
 char translateIR() { 
@@ -129,6 +134,115 @@ char translateIR() {
   return 'Z';
 }
 
+void setupDate() {
+  int cursorLocation = 0; 
+  String Date = "  /  /    ";
+  
+  lcd.setCursor(3,0);
+  lcd.print("Input Date");
+  lcd.setCursor(3, 1);
+  lcd.print(Date);
+  lcd.setCursor(cursorLocation+3, 1);
+  lcd.blink();
+  while(true) {
+    char rec = 'Z';
+    if (irrecv.decode(&results)) {
+      rec = translateIR();
+      irrecv.resume(); // receive the next value
+      if(rec == 'Z' || rec == '-' || rec == '+') { continue; }
+    
+      if(rec == 'P'){
+        if(!isDigit(Date[0]) || !isDigit(Date[1]) || Date.substring(0,2).toInt() < 1 || Date.substring(0,2).toInt() > 12) {
+          Date = "  /  /    ";
+          lcd.setCursor(3, 1);
+          lcd.print(Date);
+          cursorLocation = 0;
+          lcd.setCursor(cursorLocation+3, 1);
+          continue;
+        }
+
+        int daysInMonth = 0;
+        int curMonth = Date.substring(0,2).toInt();
+        if(curMonth == 2) {
+          int curYear = Date.substring(6,10).toInt();
+          if(curYear%4 == 0 && (curYear%100 != 0 || curYear%400 == 0))
+            daysInMonth = 29;
+          else
+            daysInMonth = 28; 
+        }
+        else if(curMonth < 8) {
+          if(curMonth%2) //if odd
+            daysInMonth = 31;
+          else
+            daysInMonth = 30;
+          }
+        else {
+          if(curMonth%2) //if odd
+            daysInMonth = 30;
+          else
+            daysInMonth = 31;
+        }
+        if(!isDigit(Date[3]) || !isDigit(Date[4]) || Date.substring(3,5).toInt() < 1 || Date.substring(3,5).toInt() > daysInMonth) {
+          //Serial.println("Invalid Day");
+          Date = "  /  /    ";
+          lcd.setCursor(3, 1);
+          lcd.print(Date);
+          cursorLocation = 0;
+          lcd.setCursor(cursorLocation+3, 1);
+          continue;
+        }
+        
+        if(!isDigit(Date[6]) || !isDigit(Date[7]) || !isDigit(Date[8]) || !isDigit(Date[9]) ) {
+          //Serial.println("Invalid Year");
+          Date = "  /  /    ";
+          lcd.setCursor(3, 1);
+          lcd.print(Date);
+          cursorLocation = 0;
+          lcd.setCursor(cursorLocation+3, 1);
+          continue;
+        }
+        break;
+      }
+      
+      else if (rec == 'B') {
+        if(cursorLocation > 0) {
+          cursorLocation--;
+          if(cursorLocation == 2 || cursorLocation == 5) {
+            cursorLocation--;
+          }
+          lcd.setCursor(cursorLocation+3, 1);
+        }
+      }
+
+      else if (rec == 'F') {
+        if(cursorLocation < 9) {
+          cursorLocation++;
+          if(cursorLocation == 2 || cursorLocation == 5) {
+            cursorLocation++;
+          }
+          lcd.setCursor(cursorLocation+3, 1);
+        }
+      }
+
+      else {
+        Date[cursorLocation] = rec;
+        if(cursorLocation < 9) {
+          cursorLocation++;
+          if(cursorLocation == 2 || cursorLocation == 5) {
+            cursorLocation++;
+          }
+        }
+        lcd.setCursor(3, 1);
+        lcd.print(Date);
+        lcd.setCursor(cursorLocation+3, 1);
+      }
+      delay(500);
+    }
+  }
+  lcd.noBlink();
+  lcd.clear();
+  setTime(1, 1, 1, Date.substring(3,5).toInt(), Date.substring(0,2).toInt(), Date.substring(6,10).toInt());
+}
 
 void setupTime() {
   int cursorLocation = 0; 
@@ -150,7 +264,7 @@ void setupTime() {
     
       if(rec == 'P'){
         if(!isDigit(Time[0]) || !isDigit(Time[1]) || Time.substring(0,2).toInt() < 1 || Time.substring(0,2).toInt() > 12) {
-          Serial.println("Invalid hour");
+          //Serial.println("Invalid hour");
           Time = "  :  :   AM";
           lcd.setCursor(3, 1);
           lcd.print(Time);
@@ -167,7 +281,7 @@ void setupTime() {
         }
           
         if(!isDigit(Time[3]) || !isDigit(Time[4]) || Time.substring(3,5).toInt() < 0 || Time.substring(3,5).toInt() > 59) {
-          Serial.println("Invalid minute");
+          //Serial.println("Invalid minute");
           Time = "  :  :  AM";
           lcd.setCursor(3, 1);
           lcd.print(Time);
@@ -177,7 +291,7 @@ void setupTime() {
         }
         
         if(!isDigit(Time[6]) || !isDigit(Time[7]) || Time.substring(6,8).toInt() > 59) {
-          Serial.println("Invalid seconds");
+          //Serial.println("Invalid seconds");
           Time = "  :  :  AM";
           lcd.setCursor(3, 1);
           lcd.print(Time);
@@ -235,5 +349,5 @@ void setupTime() {
   }
   lcd.noBlink();
   lcd.clear();
-  setTime(hour_, Time.substring(3,5).toInt(), Time.substring(6,8).toInt(), 1, 1, 1);
+  setTime(hour_, Time.substring(3,5).toInt(), Time.substring(6,8).toInt(), day(), month(), year());
 }
