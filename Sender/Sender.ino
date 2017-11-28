@@ -35,7 +35,7 @@ const int tsensor = 8;    // touch sensor on digital pin 8
 const int buzzer = 9;     // buzzer on digital pin 9
 
 // initialize to a default date and time:
-int mo = 1, dy = 1, yr = 0, hr = 0, mi = 0, sc = 0;
+int mo = 1, dy = 1, yr = 0, hr = 12, mi = 0, sc = 0;
 
 // declare variables:
 int val1, val2;
@@ -48,6 +48,7 @@ int LIMIT = 3;
 void setup() {
   // set up the LCD's number of columns and rows:
   lcd.begin(16, 2);
+  lcd.clear();
 
   // set the pin mode:
   pinMode(tsensor, INPUT);
@@ -71,28 +72,33 @@ void setup() {
   
   // set up date via IR receiver input:
   setupDate();
-  updateDateAndTime();
 }
 
 void loop() {
   mood.tick();  // turn on LED
+
+  // new day, restart count to activate touch sensor:
+  if(hour() == 0 && minute() == 0 && second() == 0)
+  {
+    numFeedings = 0;
+    hr = 0; mi = 0; sc = 0;
+  }
   
   if(wait_mode == HIGH) {
     // to receive signal from other Arduino
-    while(BTSerial.available() > 0) {
+    if(BTSerial.available() >= 4) {
       char BTkey = BTSerial.read();
       
-      if(BTkey == 'T') {
-        // get input of date and time from other Arduino:
+      if(BTkey == 'F')
+      {
+        // get input of time from other Arduino:
         hr = BTSerial.read();
         mi = BTSerial.read();
         sc = BTSerial.read();
         
         // set the date and time:
         setTime(hr, mi, sc, dy, mo, yr);
-        updateDateAndTime();
-      }
-      else if(BTkey == 'F') {
+        
         numFeedings++;
         wait_mode = LOW;
       }
@@ -122,18 +128,13 @@ void loop() {
               noTone(buzzer);
             }
           }
-          
-          // new day, restart count to activate touch sensor:
-          if(hour() == 0 && minute() == 0 && second() == 0)
-          {
-            numFeedings = 0;
-          }
         }
         
         TS_state = val1;
       }
     }
   }
+  updateDateAndTime();
 }
 
 void setupDate() {
@@ -146,6 +147,7 @@ void setupDate() {
   lcd.print(Date);
   lcd.setCursor(cursorLocation+3, 1);
   lcd.blink();
+  
   while(true) {
     char rec = 'Z';
     if (irrecv.decode(&results)) {
@@ -275,10 +277,22 @@ void updateDateAndTime() {
 
   lcd.setCursor(0, 1);
   
-  if(hr < 10) {
+  if(hr > 0 && hr < 10) {
     lcd.print("0");
   }
-  lcd.print(hr);
+
+  if(hr == 0)
+  {
+    lcd.print("12");
+  }
+  else if(hr > 12)
+  {
+    lcd.print(hr - 12);
+  }
+  else 
+  {
+    lcd.print(hr);
+  }
   lcd.print(":");
 
   if(mi < 10) {
