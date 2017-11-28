@@ -39,10 +39,6 @@ void loop() {
   if(BTserial.available()) {
     if(BTserial.read() == '1' && !alert) {
       alert = true;
-      BTserial.write('T');
-      BTserial.write(hour());
-      BTserial.write(minute());
-      BTserial.write(second());
     }
   }
 
@@ -54,8 +50,11 @@ void loop() {
     
   if (irrecv.decode(&results)) {
     if(translateIR() == '-') {
-      if(alert){
+      if(alert){    
         BTserial.write('F');
+        BTserial.write(hour());
+        BTserial.write(minute());
+        BTserial.write(second());
         alert = false;
         digitalWrite(redLED, LOW);
         digitalWrite(greenLED, LOW);
@@ -76,10 +75,16 @@ void loop() {
     lcd.print(year());
     
     lcd.setCursor(3,1);
+    if(hourFormat12() < 10)
+      lcd.print('0');
     lcd.print(hourFormat12());
     lcd.print(":");
+    if(minute() < 10)
+      lcd.print('0');
     lcd.print(minute());
     lcd.print(":");
+    if(second() < 10)
+      lcd.print('0');
     lcd.print(second());
     lcd.print(" ");
     if(isAM())
@@ -135,7 +140,7 @@ char translateIR() {
 }
 
 void setupDate() {
-  int cursorLocation = 0; 
+  int cursorLocation = 0;
   String Date = "  /  /    ";
   
   lcd.setCursor(3,0);
