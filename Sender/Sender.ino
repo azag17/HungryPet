@@ -42,7 +42,6 @@ int val1, val2;
 int TS_state = LOW;
 int wait_mode = LOW;
 int numFeedings = 0;
-int LED_state = HIGH;
 int LIMIT = 3;
 
 
@@ -55,7 +54,7 @@ void setup() {
   pinMode(buzzer, OUTPUT);
 
   // set up serial library at 9600 bps:
-  Serial.begin(9600);
+  // Serial.begin(9600);
 
   // set up bluetooth serial library at 9600 bps:
   BTSerial.begin(9600);
@@ -69,32 +68,14 @@ void setup() {
   mood.setFadingSpeed(25);
   mood.setHoldingTime(0);
   mood.fadeHSB(0, 255, 255);
-
+  
   // set up date via IR receiver input:
   setupDate();
   updateDateAndTime();
 }
 
 void loop() {
-  if(LED_state == HIGH) {
-    mood.tick();  // turn on LED
-  }
-  
-  if(irrecv.decode(&results)) {
-    char IRkey = translateIR();
-    
-    if(IRkey == 'P') {
-      // turn LED on/off
-      LED_state = !LED_state;
-    }
-    else if(IRkey == '-') {
-      // turn off music
-      noTone(buzzer);
-    }
-
-    // receive the next value:
-    irrecv.resume();
-  }
+  mood.tick();  // turn on LED
   
   if(wait_mode == HIGH) {
     // to receive signal from other Arduino
@@ -107,8 +88,9 @@ void loop() {
         mi = BTSerial.read();
         sc = BTSerial.read();
         
-        // update the date and time:
+        // set the date and time:
         setTime(hr, mi, sc, dy, mo, yr);
+        updateDateAndTime();
       }
       else if(BTkey == 'F') {
         numFeedings++;
@@ -127,7 +109,7 @@ void loop() {
         if(val1 == HIGH) {              // check if touch sensor was triggered
           
           if(numFeedings < LIMIT) {
-            Serial.println("Feed Me");  // send message
+            // Serial.println("Feed Me");  // send message
             BTSerial.write("1");        // send a signal
             wait_mode = HIGH;
             
@@ -152,63 +134,121 @@ void loop() {
       }
     }
   }
-  
-  updateDateAndTime();
 }
 
 void setupDate() {
-  int count = 0;
-  int digit = -1;
+  int cursorLocation = 0; 
+  String Date = "  /  /    ";
   
+  lcd.setCursor(3,0);
+  lcd.print("Input Date");
+  lcd.setCursor(3, 1);
+  lcd.print(Date);
+  lcd.setCursor(cursorLocation+3, 1);
+  lcd.blink();
   while(true) {
     char rec = 'Z';
-
-    if(irrecv.decode(&results)) {
+    if (irrecv.decode(&results)) {
       rec = translateIR();
-      digit = isDigit(rec);
-      irrecv.resume();
+      irrecv.resume(); // receive the next value
+      if(rec == 'Z' || rec == '-' || rec == '+') { continue; }
+    
+      if(rec == 'P'){
+        if(!isDigit(Date[0]) || !isDigit(Date[1]) || Date.substring(0,2).toInt() < 1 || Date.substring(0,2).toInt() > 12) {
+          Date = "  /  /    ";
+          lcd.setCursor(3, 1);
+          lcd.print(Date);
+          cursorLocation = 0;
+          lcd.setCursor(cursorLocation+3, 1);
+          continue;
+        }
+
+        int daysInMonth = 0;
+        int curMonth = Date.substring(0,2).toInt();
+        if(curMonth == 2) {
+          int curYear = Date.substring(6,10).toInt();
+          if(curYear%4 == 0 && (curYear%100 != 0 || curYear%400 == 0))
+            daysInMonth = 29;
+          else
+            daysInMonth = 28; 
+        }
+        else if(curMonth < 8) {
+          if(curMonth%2) //if odd
+            daysInMonth = 31;
+          else
+            daysInMonth = 30;
+          }
+        else {
+          if(curMonth%2) //if odd
+            daysInMonth = 30;
+          else
+            daysInMonth = 31;
+        }
+        if(!isDigit(Date[3]) || !isDigit(Date[4]) || Date.substring(3,5).toInt() < 1 || Date.substring(3,5).toInt() > daysInMonth) {
+          //Serial.println("Invalid Day");
+          Date = "  /  /    ";
+          lcd.setCursor(3, 1);
+          lcd.print(Date);
+          cursorLocation = 0;
+          lcd.setCursor(cursorLocation+3, 1);
+          continue;
+        }
+        
+        if(!isDigit(Date[6]) || !isDigit(Date[7]) || !isDigit(Date[8]) || !isDigit(Date[9]) ) {
+          //Serial.println("Invalid Year");
+          Date = "  /  /    ";
+          lcd.setCursor(3, 1);
+          lcd.print(Date);
+          cursorLocation = 0;
+          lcd.setCursor(cursorLocation+3, 1);
+          continue;
+        }
+        break;
+      }
       
-      if(count == 0) {  // month
-        if(rec == '0' || digit == 1) {
-          mo = digit * 10;
-          count++;
+      else if (rec == 'B') {
+        if(cursorLocation > 0) {
+          cursorLocation--;
+          if(cursorLocation == 2 || cursorLocation == 5) {
+            cursorLocation--;
+          }
+          lcd.setCursor(cursorLocation+3, 1);
         }
       }
-      else if(count == 1) {
-        if((mo == 0 && digit > 0 && digit < 10) ||
-           (mo == 10 && (rec == '0' || digit == 1 || digit == 2))) {
-          mo += digit;
-          count++;
+
+      else if (rec == 'F') {
+        if(cursorLocation < 9) {
+          cursorLocation++;
+          if(cursorLocation == 2 || cursorLocation == 5) {
+            cursorLocation++;
+          }
+          lcd.setCursor(cursorLocation+3, 1);
         }
       }
-      else if(count == 2) {  // day
-        if(rec == '0' || (digit > 0 && digit < 4)) {
-          dy = digit * 10;
-          count++;
+
+      else {
+        Date[cursorLocation] = rec;
+        if(cursorLocation < 9) {
+          cursorLocation++;
+          if(cursorLocation == 2 || cursorLocation == 5) {
+            cursorLocation++;
+          }
         }
+        lcd.setCursor(3, 1);
+        lcd.print(Date);
+        lcd.setCursor(cursorLocation+3, 1);
       }
-      else if(count == 3) {
-        if((dy == 0 && digit > 0 && digit < 10) ||
-           (dy == 30 && (rec == '0' || digit == 1)) ||
-           (rec == '0' || (digit > 0 && digit < 10))) {
-          dy += digit;
-          count++;
-        }
-      }
-      else if(count == 4) {  // year
-        if(rec == '0' || (digit > 0 && digit < 10)) {
-          yr = digit * 10;
-          count++;
-        }
-      }
-      else if(count == 5) {
-        if(rec == '0' || (digit > 0 && digit < 10)) {
-          yr += digit;
-          break;
-        }
-      }
+      delay(500);
     }
   }
+  lcd.noBlink();
+  lcd.clear();
+
+  dy = Date.substring(3,5).toInt();
+  mo = Date.substring(0,2).toInt();
+  yr = Date.substring(6,10).toInt();
+  
+  setTime(hr, mi, sc, dy, mo, yr);
 }
 
 void updateDateAndTime() {
@@ -235,22 +275,22 @@ void updateDateAndTime() {
 
   lcd.setCursor(0, 1);
   
-  if(hourFormat12() < 10) {
+  if(hr < 10) {
     lcd.print("0");
   }
-  lcd.print(hourFormat12());
+  lcd.print(hr);
   lcd.print(":");
 
-  if(minute() < 10) {
+  if(mi < 10) {
     lcd.print("0");
   }  
-  lcd.print(minute());
+  lcd.print(mi);
   lcd.print(":");
 
-  if(second() < 10) {
+  if(sc < 10) {
     lcd.print("0");
   }
-  lcd.print(second());
+  lcd.print(sc);
   lcd.print(" ");
   
   if(isPM()) {
