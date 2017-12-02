@@ -12,4 +12,4 @@ Ahmad Zaghloul<br>
 - RGB-Mood: https://github.com/Tibus/Arduino-RGB-Mood
 
 ## Additional Receiver Arduino Libraries
-- TuneManager and ABCNoteParser: https://github.com/azag17/EightBitTunes
+- TuneManager
